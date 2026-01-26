@@ -1,5 +1,7 @@
 
-export type ProductCategory = 'Sun Care' | 'Foundation' | 'Essence' | 'Cream';
+export const CATEGORIES = ['Sun Care', 'Foundation', 'Essence', 'Cream'] as const;
+
+export type ProductCategory = typeof CATEGORIES[number];
 
 export type CustomerStatus = 'Thriving' | 'Stable' | 'Challenged';
 
@@ -42,3 +44,19 @@ export interface CategoryData {
 export interface DashboardState {
   selectedCategory: ProductCategory;
 }
+
+export interface MonthColumn extends MonthlyPerformance {
+  type: 'month';
+}
+
+export interface SummaryColumn {
+  type: 'summary';
+  month: string; // '상반기' | '하반기' | '연간 합계'
+  lastYearActual: number;
+  thisYearTarget: number;
+  thisYearActual: number | null;
+  achievement?: number | null;
+  growth?: number | null;
+}
+
+export type TableColumn = MonthColumn | SummaryColumn;

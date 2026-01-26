@@ -1,5 +1,5 @@
 
-import { CategoryData, MonthlyPerformance, MarketShare, Facilitator, CustomerData, CustomerStatus } from './types';
+import { CategoryData, MonthlyPerformance, MarketShare, Facilitator, CustomerData, CustomerStatus } from '../types';
 
 const generateMonthlyData = (baseVal: number, trend: number): MonthlyPerformance[] => {
   return Array.from({ length: 12 }, (_, i) => ({
@@ -107,6 +107,5 @@ export const MOCK_DATA: Record<string, CategoryData> = {
   },
 };
 
-export const CATEGORIES: string[] = ['Sun Care', 'Foundation', 'Essence', 'Cream'];
 export const LAST_UPDATE_DATE = '2024-05-20';
 export const DATA_PERIOD = '2024.01–2024.04 (YTD)';

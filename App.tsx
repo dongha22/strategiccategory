@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { ProductCategory, DashboardState, MonthlyPerformance } from './types';
-import { MOCK_DATA, CATEGORIES, LAST_UPDATE_DATE, DATA_PERIOD } from './constants';
+import { ProductCategory, DashboardState, MonthlyPerformance, CATEGORIES, TableColumn } from './types';
+import { MOCK_DATA, LAST_UPDATE_DATE, DATA_PERIOD } from './data/mockData';
 import { PerformanceMetrics } from './components/PerformanceMetrics';
 import { SalesChart } from './components/SalesChart';
 import { MarketShareChart } from './components/MarketShareChart';
@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const currentDisplay = getCategoryDisplayInfo(state.selectedCategory);
 
   // Helper to get full 12 month data and summary columns
-  const getTableColumns = () => {
+  const getTableColumns = (): TableColumn[] => {
     const fullYear = currentData.totalPerformance; // Should be 12 items
     
     const calculateSummary = (months: MonthlyPerformance[]) => {
@@ -135,7 +135,7 @@ const App: React.FC = () => {
         </div>
 
         {/* KPIs */}
-        <PerformanceMetrics data={{ ...currentData, performance: currentData.totalPerformance } as any} />
+        <PerformanceMetrics data={currentData} />
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -196,8 +196,8 @@ const App: React.FC = () => {
                 {/* Achievement Rate */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left sticky left-0 z-10">달성률</th>
-                  {tableColumns.map((col, idx) => {
-                    const achievement = col.type === 'summary' ? (col as any).achievement : (col.thisYearActual !== null ? (col.thisYearActual / col.thisYearTarget) * 100 : null);
+                   {tableColumns.map((col, idx) => {
+                     const achievement = col.type === 'summary' ? col.achievement : (col.thisYearActual !== null ? (col.thisYearActual / col.thisYearTarget) * 100 : null);
                     return (
                       <td key={idx} className={`px-4 py-3 text-center ${col.type === 'summary' ? 'bg-blue-50/20' : ''}`}>
                         {achievement !== null ? (
@@ -212,8 +212,8 @@ const App: React.FC = () => {
                 {/* Growth Rate */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left sticky left-0 z-10">성장률</th>
-                  {tableColumns.map((col, idx) => {
-                    const growth = col.type === 'summary' ? (col as any).growth : (col.thisYearActual !== null ? ((col.thisYearActual - col.lastYearActual) / col.lastYearActual) * 100 : null);
+                   {tableColumns.map((col, idx) => {
+                     const growth = col.type === 'summary' ? col.growth : (col.thisYearActual !== null ? ((col.thisYearActual - col.lastYearActual) / col.lastYearActual) * 100 : null);
                     return (
                       <td key={idx} className={`px-4 py-3 text-center ${col.type === 'summary' ? 'bg-blue-50/20' : ''}`}>
                         {growth !== null ? (
