@@ -37,18 +37,18 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-1">{label}월 실적 현황</p>
         <div className="space-y-1.5">
           <div className="flex justify-between gap-4 text-slate-500">
-            <span>전년 실적:</span>
-            <span className="text-slate-800 font-semibold">{lastYear.toLocaleString()}억</span>
+            <span>25년 실적:</span>
+            <span className="text-slate-800 font-semibold">{Math.round(lastYear).toLocaleString()}억</span>
           </div>
           <div className="flex justify-between gap-4 text-slate-500">
-            <span>금년 목표:</span>
-            <span className="text-slate-800 font-semibold">{target.toLocaleString()}억</span>
+            <span>26년 목표:</span>
+            <span className="text-slate-800 font-semibold">{Math.round(target).toLocaleString()}억</span>
           </div>
           {actual !== null ? (
             <>
               <div className="flex justify-between gap-4 text-blue-600 font-bold">
-                <span>금년 실적:</span>
-                <span>{actual.toLocaleString()}억</span>
+                <span>26년 실적:</span>
+                <span>{Math.round(actual).toLocaleString()}억</span>
               </div>
               <div className="pt-1.5 mt-1 border-t border-slate-100 flex flex-col gap-1">
                 <div className="flex justify-between gap-4">
@@ -93,6 +93,7 @@ export const SalesChart: React.FC<Props> = ({ data }) => {
             axisLine={false}
             tickLine={false}
             tick={{ fill: '#64748b', fontSize: 12 }}
+            tickFormatter={(val) => Math.round(val).toString()}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend 
@@ -102,7 +103,7 @@ export const SalesChart: React.FC<Props> = ({ data }) => {
             wrapperStyle={{ fontSize: '12px', fontWeight: 600, color: '#475569', paddingBottom: '20px' }}
           />
           <Bar 
-            name="전년 실적" 
+            name="25년 실적" 
             dataKey="lastYearActual" 
             fill="#cbd5e1" 
             stroke="#94a3b8"
@@ -110,14 +111,14 @@ export const SalesChart: React.FC<Props> = ({ data }) => {
             radius={[2, 2, 0, 0]}
           />
           <Bar 
-            name="금년 목표" 
+            name="26년 목표" 
             dataKey="thisYearTarget" 
             fill="#94a3b8" 
             barSize={12} 
             radius={[2, 2, 0, 0]}
           />
           <Bar 
-            name="금년 실적" 
+            name="26년 실적" 
             dataKey="thisYearActual" 
             fill="#2563eb" 
             barSize={12} 
@@ -127,7 +128,7 @@ export const SalesChart: React.FC<Props> = ({ data }) => {
               dataKey="thisYearActual" 
               position="top" 
               style={{ fill: '#2563eb', fontSize: '10px', fontWeight: 'bold' }} 
-              formatter={(val: number | null) => val !== null ? val : ''}
+              formatter={(val: number | null) => val !== null ? Math.round(val) : ''}
             />
           </Bar>
         </BarChart>

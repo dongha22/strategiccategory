@@ -19,13 +19,23 @@ export interface MarketShare {
   others: number;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  revenue: number;
+  growth: number;
+  share: number;
+}
+
 export interface CustomerData {
   id: string;
   name: string;
+  revenueLastYear: number;
   revenueYTD: number;
   growth: number;
-  shares: MarketShare[]; // Specific shares for this customer
+  shares: MarketShare[];
   status: CustomerStatus;
+  products: Product[];
 }
 
 export interface Facilitator {
