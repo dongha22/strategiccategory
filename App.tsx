@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { ProductCategory, DashboardState, MonthlyPerformance, CATEGORIES, TableColumn, CustomerData, CategoryData, MarketShare } from './types';
-import { MOCK_DATA, LAST_UPDATE_DATE } from './data/mockData';
+import React, { useState } from 'react';
+import { ProductCategory, DashboardState, MonthlyPerformance, CATEGORIES, TableColumn, CustomerData, MarketShare } from './types';
+import { LAST_UPDATE_DATE } from './data/mockData';
 import { PerformanceMetrics } from './components/PerformanceMetrics';
 import { SalesChart } from './components/SalesChart';
 import { MarketShareChart } from './components/MarketShareChart';
@@ -10,16 +10,8 @@ import { ProductListModal } from './components/ProductListModal';
 import { ExcelUploader } from './components/ExcelUploader';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { useAuthContext } from './src/components/AuthProvider';
-import { mergeWithExistingData } from './utils/excelParser';
-
-const STORAGE_KEYS = {
-  PERFORMANCE: 'dashboard_performance_data',
-  CUSTOMER: 'dashboard_customer_data',
-  CUSTOMER_REVENUE: 'dashboard_customer_revenue_data',
-  CUSTOMER_REVENUE_LAST_YEAR: 'dashboard_customer_revenue_last_year',
-  CUSTOMER_REVENUE_THIS_YEAR: 'dashboard_customer_revenue_this_year',
-  CUSTOMER_REVENUE_LAST_YEAR_BY_MONTH: 'dashboard_customer_revenue_last_year_by_month',
-};
+import { useDashboardData } from './src/hooks/useDashboardData';
+import { uploadPerformanceData, uploadCustomerData, clearCategoryData } from './src/lib/database';
 
 const App: React.FC = () => {
   const { isAdmin, signOut } = useAuthContext();
@@ -27,150 +19,57 @@ const App: React.FC = () => {
     selectedCategory: 'Sun Care',
   });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
-  const [performanceData, setPerformanceData] = useState<Partial<Record<ProductCategory, MonthlyPerformance[]>>>({});
-  const [customerData, setCustomerData] = useState<Partial<Record<ProductCategory, { customers: CustomerData[], aggregateShare: MarketShare[] }>>>({});
-  const [customerRevenueLastYear, setCustomerRevenueLastYear] = useState<Partial<Record<ProductCategory, Record<string, number>>>>({});
-  const [customerRevenueThisYear, setCustomerRevenueThisYear] = useState<Partial<Record<ProductCategory, Record<string, number>>>>({});
-  const [customerRevenueLastYearByMonth, setCustomerRevenueLastYearByMonth] = useState<Partial<Record<ProductCategory, Record<string, Record<number, number>>>>>({});
-  const [dashboardData, setDashboardData] = useState<Record<string, CategoryData>>(MOCK_DATA);
-  const [isInitialized, setIsInitialized] = useState(false);
+  
+  const { data: currentData, loading, refresh } = useDashboardData(state.selectedCategory);
 
-  useEffect(() => {
-    const savedPerformance = localStorage.getItem(STORAGE_KEYS.PERFORMANCE);
-    const savedCustomer = localStorage.getItem(STORAGE_KEYS.CUSTOMER);
-    const savedRevenueLastYear = localStorage.getItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR);
-    const savedRevenueThisYear = localStorage.getItem(STORAGE_KEYS.CUSTOMER_REVENUE_THIS_YEAR);
-    const savedRevenueLastYearByMonth = localStorage.getItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR_BY_MONTH);
-    
-    let loadedPerformance: Partial<Record<ProductCategory, MonthlyPerformance[]>> = {};
-    let loadedCustomer: Partial<Record<ProductCategory, { customers: CustomerData[], aggregateShare: MarketShare[] }>> = {};
-    let loadedRevenueLastYear: Partial<Record<ProductCategory, Record<string, number>>> = {};
-    let loadedRevenueThisYear: Partial<Record<ProductCategory, Record<string, number>>> = {};
-    let loadedRevenueLastYearByMonth: Partial<Record<ProductCategory, Record<string, Record<number, number>>>> = {};
-    
-    if (savedPerformance) {
-      loadedPerformance = JSON.parse(savedPerformance);
-      setPerformanceData(loadedPerformance);
-    }
-    if (savedCustomer) {
-      loadedCustomer = JSON.parse(savedCustomer);
-      setCustomerData(loadedCustomer);
-    }
-    if (savedRevenueLastYear) {
-      loadedRevenueLastYear = JSON.parse(savedRevenueLastYear);
-      setCustomerRevenueLastYear(loadedRevenueLastYear);
-    }
-    if (savedRevenueThisYear) {
-      loadedRevenueThisYear = JSON.parse(savedRevenueThisYear);
-      setCustomerRevenueThisYear(loadedRevenueThisYear);
-    }
-    if (savedRevenueLastYearByMonth) {
-      loadedRevenueLastYearByMonth = JSON.parse(savedRevenueLastYearByMonth);
-      setCustomerRevenueLastYearByMonth(loadedRevenueLastYearByMonth);
-    }
-    
-    if (savedPerformance || savedCustomer || savedRevenueLastYear || savedRevenueThisYear) {
-      setDashboardData(mergeWithExistingData(MOCK_DATA, loadedPerformance, loadedCustomer, loadedRevenueLastYear, loadedRevenueThisYear, loadedRevenueLastYearByMonth));
-    }
-    
-    setIsInitialized(true);
-  }, []);
-
-  const handlePerformanceUpload = (
+  const handlePerformanceUpload = async (
     data: Partial<Record<ProductCategory, MonthlyPerformance[]>>,
-    revenueLastYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
-    revenueThisYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
-    revenueLastYearByMonthData?: Partial<Record<ProductCategory, Map<string, Map<number, number>>>>
+    _revenueLastYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
+    _revenueThisYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
+    _revenueLastYearByMonthData?: Partial<Record<ProductCategory, Map<string, Map<number, number>>>>
   ) => {
-    const mergedPerf = { ...performanceData };
-    for (const [cat, newPerf] of Object.entries(data)) {
-      const category = cat as ProductCategory;
-      const existing = mergedPerf[category] || Array.from({ length: 12 }, (_, i) => ({
-        month: i + 1,
-        lastYearActual: 0,
-        thisYearTarget: 0,
-        thisYearActual: null,
-      }));
-      
-      mergedPerf[category] = existing.map((month, idx) => ({
-        ...month,
-        lastYearActual: newPerf[idx]?.lastYearActual || month.lastYearActual,
-        thisYearTarget: newPerf[idx]?.thisYearTarget || month.thisYearTarget,
-        thisYearActual: newPerf[idx]?.thisYearActual ?? month.thisYearActual,
-      }));
-    }
-    setPerformanceData(mergedPerf);
-    localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(mergedPerf));
-    
-    let mergedLastYear = { ...customerRevenueLastYear };
-    let mergedThisYear = { ...customerRevenueThisYear };
-    
-    if (revenueLastYearData) {
-      for (const [cat, revenueMap] of Object.entries(revenueLastYearData)) {
-        const revenueObj: Record<string, number> = {};
-        for (const [customer, revenue] of revenueMap) {
-          revenueObj[customer] = revenue;
+    try {
+      for (const [category, performance] of Object.entries(data)) {
+        if (performance) {
+          await uploadPerformanceData(category as ProductCategory, performance);
         }
-        mergedLastYear[cat as ProductCategory] = { ...mergedLastYear[cat as ProductCategory], ...revenueObj };
       }
-      setCustomerRevenueLastYear(mergedLastYear);
-      localStorage.setItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR, JSON.stringify(mergedLastYear));
+      await refresh();
+    } catch (error) {
+      console.error('Failed to upload performance data:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload performance data');
     }
-    
-    if (revenueThisYearData) {
-      for (const [cat, revenueMap] of Object.entries(revenueThisYearData)) {
-        const revenueObj: Record<string, number> = {};
-        for (const [customer, revenue] of revenueMap) {
-          revenueObj[customer] = revenue;
-        }
-        mergedThisYear[cat as ProductCategory] = { ...mergedThisYear[cat as ProductCategory], ...revenueObj };
-      }
-      setCustomerRevenueThisYear(mergedThisYear);
-      localStorage.setItem(STORAGE_KEYS.CUSTOMER_REVENUE_THIS_YEAR, JSON.stringify(mergedThisYear));
-    }
-    
-    let mergedLastYearByMonth = { ...customerRevenueLastYearByMonth };
-    if (revenueLastYearByMonthData) {
-      for (const [cat, customerMap] of Object.entries(revenueLastYearByMonthData)) {
-        const customerObj: Record<string, Record<number, number>> = {};
-        for (const [customer, monthMap] of customerMap) {
-          const monthObj: Record<number, number> = {};
-          for (const [month, revenue] of monthMap) {
-            monthObj[month] = revenue;
-          }
-          customerObj[customer] = monthObj;
-        }
-        mergedLastYearByMonth[cat as ProductCategory] = { ...mergedLastYearByMonth[cat as ProductCategory], ...customerObj };
-      }
-      setCustomerRevenueLastYearByMonth(mergedLastYearByMonth);
-      localStorage.setItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR_BY_MONTH, JSON.stringify(mergedLastYearByMonth));
-    }
-    
-    setDashboardData(prev => mergeWithExistingData(prev, mergedPerf, customerData, mergedLastYear, mergedThisYear, mergedLastYearByMonth));
   };
 
-  const handleCustomerUpload = (data: Partial<Record<ProductCategory, { customers: CustomerData[], aggregateShare: MarketShare[] }>>) => {
-    const merged = { ...customerData, ...data };
-    setCustomerData(merged);
-    localStorage.setItem(STORAGE_KEYS.CUSTOMER, JSON.stringify(merged));
-    setDashboardData(prev => mergeWithExistingData(prev, performanceData, merged, customerRevenueLastYear, customerRevenueThisYear, customerRevenueLastYearByMonth));
+  const handleCustomerUpload = async (data: Partial<Record<ProductCategory, { customers: CustomerData[], aggregateShare: MarketShare[] }>>) => {
+    try {
+      for (const [category, categoryData] of Object.entries(data)) {
+        if (categoryData) {
+          await uploadCustomerData(
+            category as ProductCategory,
+            categoryData.customers,
+            categoryData.aggregateShare
+          );
+        }
+      }
+      await refresh();
+    } catch (error) {
+      console.error('Failed to upload customer data:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload customer data');
+    }
   };
 
-  const handleReset = () => {
-    localStorage.removeItem(STORAGE_KEYS.PERFORMANCE);
-    localStorage.removeItem(STORAGE_KEYS.CUSTOMER);
-    localStorage.removeItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR);
-    localStorage.removeItem(STORAGE_KEYS.CUSTOMER_REVENUE_THIS_YEAR);
-    localStorage.removeItem(STORAGE_KEYS.CUSTOMER_REVENUE_LAST_YEAR_BY_MONTH);
-    setPerformanceData({});
-    setCustomerData({});
-    setCustomerRevenueLastYear({});
-    setCustomerRevenueThisYear({});
-    setCustomerRevenueLastYearByMonth({});
-    setDashboardData(MOCK_DATA);
+  const handleReset = async () => {
+    try {
+      for (const category of CATEGORIES) {
+        await clearCategoryData(category);
+      }
+      await refresh();
+    } catch (error) {
+      console.error('Failed to reset data:', error);
+      alert(error instanceof Error ? error.message : 'Failed to reset data');
+    }
   };
-
-  const currentData = dashboardData[state.selectedCategory];
 
   const getCategoryDisplayInfo = (cat: ProductCategory) => {
     switch (cat) {
@@ -197,9 +96,8 @@ const App: React.FC = () => {
     return `2026.${String(minMonth).padStart(2, '0')}~2026.${String(maxMonth).padStart(2, '0')}`;
   };
 
-  // Helper to get full 12 month data and summary columns
   const getTableColumns = (): TableColumn[] => {
-    const fullYear = currentData.totalPerformance; // Should be 12 items
+    const fullYear = currentData.totalPerformance;
     
     const calculateSummary = (months: MonthlyPerformance[]) => {
       const lastYearActual = months.reduce((acc, curr) => acc + curr.lastYearActual, 0);
@@ -214,7 +112,6 @@ const App: React.FC = () => {
 
       let growth: number | null = null;
       if (thisYearActual !== null && lastYearActual > 0) {
-        // Growth should compare against the same period of last year
         const lastYearSamePeriod = thisYearActualArr.reduce((acc, curr) => acc + curr.lastYearActual, 0);
         growth = ((thisYearActual - lastYearSamePeriod) / lastYearSamePeriod) * 100;
       }
@@ -242,10 +139,19 @@ const App: React.FC = () => {
 
   const tableColumns = getTableColumns();
 
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-slate-500">Loading...</div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Navigation Header */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -298,9 +204,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {/* Intro & Facilitators */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
           <div className="flex items-center gap-3">
             <span className="text-4xl">{currentDisplay.icon}</span>
@@ -319,10 +223,8 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* KPIs */}
         <PerformanceMetrics data={currentData} />
 
-        {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <SalesChart data={currentData.totalPerformance} />
           <div className="relative">
@@ -330,13 +232,11 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* New Customer Table Section */}
         <CustomerTable 
           customers={currentData.topCustomers} 
           onCustomerClick={(customer) => setSelectedCustomer(customer)}
         />
 
-        {/* Detailed Data Table (Transposed Monthly Summary) */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/30 flex justify-between items-center">
             <h3 className="font-bold text-slate-800 text-lg">카테고리 실적 현황</h3>
@@ -345,7 +245,6 @@ const App: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse min-w-[1200px]">
               <tbody className="divide-y divide-slate-100">
-                {/* Header Row */}
                 <tr>
                   <th className="px-4 py-3 bg-slate-50 text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">월</th>
                   {tableColumns.map((col, idx) => (
@@ -354,7 +253,6 @@ const App: React.FC = () => {
                     </td>
                   ))}
                 </tr>
-                {/* Last Year Actual */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">25년 실적</th>
                   {tableColumns.map((col, idx) => (
@@ -363,7 +261,6 @@ const App: React.FC = () => {
                     </td>
                   ))}
                 </tr>
-                {/* This Year Target */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">26년 목표</th>
                   {tableColumns.map((col, idx) => (
@@ -372,7 +269,6 @@ const App: React.FC = () => {
                     </td>
                   ))}
                 </tr>
-                {/* This Year Actual */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">26년 실적</th>
                   {tableColumns.map((col, idx) => (
@@ -381,7 +277,6 @@ const App: React.FC = () => {
                     </td>
                   ))}
                 </tr>
-                {/* Achievement Rate */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">달성률</th>
                    {tableColumns.map((col, idx) => {
@@ -397,7 +292,6 @@ const App: React.FC = () => {
                     );
                   })}
                 </tr>
-                {/* Growth Rate */}
                 <tr>
                   <th className="px-4 py-3 bg-white text-slate-500 font-medium border-r border-slate-100 text-left w-24 whitespace-nowrap sticky left-0 z-10">성장률</th>
                    {tableColumns.map((col, idx) => {

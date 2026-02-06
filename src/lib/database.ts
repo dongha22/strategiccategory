@@ -1,0 +1,354 @@
+import { supabase } from './supabase'
+import { ProductCategory, CategoryData, MonthlyPerformance, CustomerData, MarketShare, Facilitator, Product } from '../../types'
+import { MOCK_DATA } from '../../data/mockData'
+
+export async function getCategoryId(categoryName: ProductCategory): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('name', categoryName)
+    .single()
+  
+  if (error || !data) {
+    console.error('Error fetching category ID:', error)
+    return null
+  }
+  
+  return data.id
+}
+
+export async function getMonthlyPerformance(categoryId: string): Promise<MonthlyPerformance[]> {
+  const { data, error } = await supabase
+    .from('monthly_performance')
+    .select('*')
+    .eq('category_id', categoryId)
+    .order('month', { ascending: true })
+  
+  if (error || !data) {
+    console.error('Error fetching monthly performance:', error)
+    return []
+  }
+  
+  return data.map(row => ({
+    month: row.month,
+    lastYearActual: row.last_year_actual,
+    thisYearTarget: row.this_year_target,
+    thisYearActual: row.this_year_actual
+  }))
+}
+
+export async function getFacilitators(categoryId: string): Promise<Facilitator[]> {
+  const { data, error } = await supabase
+    .from('facilitators')
+    .select('*')
+    .eq('category_id', categoryId)
+  
+  if (error || !data) {
+    console.error('Error fetching facilitators:', error)
+    return []
+  }
+  
+  return data.map(row => ({
+    role: row.role as Facilitator['role'],
+    name: row.name
+  }))
+}
+
+export async function getCustomers(categoryId: string): Promise<CustomerData[]> {
+  const { data: customersData, error: customersError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('category_id', categoryId)
+  
+  if (customersError || !customersData) {
+    console.error('Error fetching customers:', customersError)
+    return []
+  }
+  
+  const customers: CustomerData[] = []
+  
+  for (const customer of customersData) {
+    const { data: sharesData } = await supabase
+      .from('market_shares')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .eq('is_aggregate', false)
+      .order('period', { ascending: true })
+    
+    const shares: MarketShare[] = (sharesData || []).map(s => ({
+      period: s.period,
+      cosmax: s.cosmax,
+      kolmar: s.kolmar,
+      others: s.others
+    }))
+    
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('*')
+      .eq('customer_id', customer.id)
+    
+    const products: Product[] = (productsData || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      revenue: p.revenue,
+      growth: p.growth,
+      share: p.share
+    }))
+    
+    customers.push({
+      id: customer.id,
+      name: customer.name,
+      revenueLastYear: customer.revenue_last_year,
+      revenueYTD: customer.revenue_ytd,
+      growth: customer.growth,
+      status: customer.status,
+      shares,
+      products
+    })
+  }
+  
+  return customers
+}
+
+export async function getAggregateMarketShares(categoryId: string): Promise<MarketShare[]> {
+  const { data, error } = await supabase
+    .from('market_shares')
+    .select('*')
+    .eq('category_id', categoryId)
+    .eq('is_aggregate', true)
+    .order('period', { ascending: true })
+  
+  if (error || !data) {
+    console.error('Error fetching aggregate market shares:', error)
+    return []
+  }
+  
+  return data.map(row => ({
+    period: row.period,
+    cosmax: row.cosmax,
+    kolmar: row.kolmar,
+    others: row.others
+  }))
+}
+
+export async function getCategoryData(categoryName: ProductCategory): Promise<CategoryData | null> {
+  const categoryId = await getCategoryId(categoryName)
+  
+  if (!categoryId) {
+    console.log(`Category ${categoryName} not found, using mock data`)
+    return MOCK_DATA[categoryName]
+  }
+  
+  const [performance, facilitators, customers, aggregateShares] = await Promise.all([
+    getMonthlyPerformance(categoryId),
+    getFacilitators(categoryId),
+    getCustomers(categoryId),
+    getAggregateMarketShares(categoryId)
+  ])
+  
+  if (performance.length === 0 && customers.length === 0) {
+    console.log(`No data for ${categoryName}, using mock data`)
+    return MOCK_DATA[categoryName]
+  }
+  
+  const fullPerformance: MonthlyPerformance[] = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1
+    const existing = performance.find(p => p.month === month)
+    return existing || {
+      month,
+      lastYearActual: 0,
+      thisYearTarget: 0,
+      thisYearActual: null
+    }
+  })
+  
+  return {
+    category: categoryName,
+    totalPerformance: fullPerformance,
+    top20AggregateShare: aggregateShares.length > 0 ? aggregateShares : MOCK_DATA[categoryName].top20AggregateShare,
+    topCustomers: customers.length > 0 ? customers : MOCK_DATA[categoryName].topCustomers,
+    facilitators: facilitators.length > 0 ? facilitators : MOCK_DATA[categoryName].facilitators
+  }
+}
+
+export async function uploadPerformanceData(
+  categoryName: ProductCategory,
+  performance: MonthlyPerformance[]
+): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+  
+  if (!categoryId) {
+    throw new Error(`Category ${categoryName} not found`)
+  }
+  
+  const { error: deleteError } = await supabase
+    .from('monthly_performance')
+    .delete()
+    .eq('category_id', categoryId)
+  
+  if (deleteError) {
+    throw new Error(`Failed to clear existing performance data: ${deleteError.message}`)
+  }
+  
+  const rows = performance.map(p => ({
+    category_id: categoryId,
+    month: p.month,
+    last_year_actual: p.lastYearActual,
+    this_year_target: p.thisYearTarget,
+    this_year_actual: p.thisYearActual
+  }))
+  
+  const { error: insertError } = await supabase
+    .from('monthly_performance')
+    .insert(rows)
+  
+  if (insertError) {
+    throw new Error(`Failed to insert performance data: ${insertError.message}`)
+  }
+}
+
+export async function uploadCustomerData(
+  categoryName: ProductCategory,
+  customers: CustomerData[],
+  aggregateShares: MarketShare[]
+): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+  
+  if (!categoryId) {
+    throw new Error(`Category ${categoryName} not found`)
+  }
+  
+  const { error: deleteCustomersError } = await supabase
+    .from('customers')
+    .delete()
+    .eq('category_id', categoryId)
+  
+  if (deleteCustomersError) {
+    throw new Error(`Failed to clear existing customer data: ${deleteCustomersError.message}`)
+  }
+  
+  const { error: deleteSharesError } = await supabase
+    .from('market_shares')
+    .delete()
+    .eq('category_id', categoryId)
+    .eq('is_aggregate', true)
+  
+  if (deleteSharesError) {
+    throw new Error(`Failed to clear existing aggregate shares: ${deleteSharesError.message}`)
+  }
+  
+  for (const customer of customers) {
+    const { data: insertedCustomer, error: customerError } = await supabase
+      .from('customers')
+      .insert({
+        category_id: categoryId,
+        name: customer.name,
+        revenue_last_year: customer.revenueLastYear,
+        revenue_ytd: customer.revenueYTD,
+        growth: customer.growth,
+        status: customer.status
+      })
+      .select('id')
+      .single()
+    
+    if (customerError || !insertedCustomer) {
+      throw new Error(`Failed to insert customer ${customer.name}: ${customerError?.message}`)
+    }
+    
+    const customerId = insertedCustomer.id
+    
+    if (customer.products.length > 0) {
+      const productRows = customer.products.map(p => ({
+        customer_id: customerId,
+        name: p.name,
+        revenue: p.revenue,
+        growth: p.growth,
+        share: p.share
+      }))
+      
+      const { error: productsError } = await supabase
+        .from('products')
+        .insert(productRows)
+      
+      if (productsError) {
+        throw new Error(`Failed to insert products for ${customer.name}: ${productsError.message}`)
+      }
+    }
+    
+    if (customer.shares.length > 0) {
+      const shareRows = customer.shares.map(s => ({
+        category_id: categoryId,
+        customer_id: customerId,
+        period: s.period,
+        cosmax: s.cosmax,
+        kolmar: s.kolmar,
+        others: s.others,
+        is_aggregate: false
+      }))
+      
+      const { error: sharesError } = await supabase
+        .from('market_shares')
+        .insert(shareRows)
+      
+      if (sharesError) {
+        throw new Error(`Failed to insert market shares for ${customer.name}: ${sharesError.message}`)
+      }
+    }
+  }
+  
+  if (aggregateShares.length > 0) {
+    const aggregateRows = aggregateShares.map(s => ({
+      category_id: categoryId,
+      customer_id: null,
+      period: s.period,
+      cosmax: s.cosmax,
+      kolmar: s.kolmar,
+      others: s.others,
+      is_aggregate: true
+    }))
+    
+    const { error: aggregateError } = await supabase
+      .from('market_shares')
+      .insert(aggregateRows)
+    
+    if (aggregateError) {
+      throw new Error(`Failed to insert aggregate market shares: ${aggregateError.message}`)
+    }
+  }
+}
+
+export async function clearCategoryData(categoryName: ProductCategory): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+  
+  if (!categoryId) {
+    throw new Error(`Category ${categoryName} not found`)
+  }
+  
+  const { error: customersError } = await supabase
+    .from('customers')
+    .delete()
+    .eq('category_id', categoryId)
+  
+  if (customersError) {
+    throw new Error(`Failed to clear customers: ${customersError.message}`)
+  }
+  
+  const { error: sharesError } = await supabase
+    .from('market_shares')
+    .delete()
+    .eq('category_id', categoryId)
+    .eq('is_aggregate', true)
+  
+  if (sharesError) {
+    throw new Error(`Failed to clear aggregate shares: ${sharesError.message}`)
+  }
+  
+  const { error: perfError } = await supabase
+    .from('monthly_performance')
+    .delete()
+    .eq('category_id', categoryId)
+  
+  if (perfError) {
+    throw new Error(`Failed to clear performance data: ${perfError.message}`)
+  }
+}
