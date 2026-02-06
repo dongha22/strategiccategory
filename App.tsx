@@ -12,9 +12,11 @@ import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { useAuthContext } from './src/components/AuthProvider';
 import { useDashboardData } from './src/hooks/useDashboardData';
 import { uploadPerformanceData, uploadCustomerData, clearCategoryData } from './src/lib/database';
+import { AdminPage } from './src/pages/AdminPage';
 
 const App: React.FC = () => {
   const { isAdmin, signOut } = useAuthContext();
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'admin'>('dashboard');
   const [state, setState] = useState<DashboardState>({
     selectedCategory: 'Sun Care',
   });
@@ -149,6 +151,14 @@ const App: React.FC = () => {
     );
   }
 
+  if (currentPage === 'admin') {
+    return (
+      <ProtectedRoute>
+        <AdminPage onBack={() => setCurrentPage('dashboard')} />
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -163,11 +173,19 @@ const App: React.FC = () => {
           </div>
            <div className="flex items-center gap-4">
               {isAdmin && (
-                <ExcelUploader 
-                  onPerformanceUpload={handlePerformanceUpload}
-                  onCustomerUpload={handleCustomerUpload}
-                  onReset={handleReset}
-                />
+                <>
+                  <ExcelUploader 
+                    onPerformanceUpload={handlePerformanceUpload}
+                    onCustomerUpload={handleCustomerUpload}
+                    onReset={handleReset}
+                  />
+                  <button
+                    onClick={() => setCurrentPage('admin')}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+                  >
+                    관리
+                  </button>
+                </>
               )}
               <button
                 onClick={() => signOut()}

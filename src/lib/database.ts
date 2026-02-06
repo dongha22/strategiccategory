@@ -352,3 +352,49 @@ export async function clearCategoryData(categoryName: ProductCategory): Promise<
     throw new Error(`Failed to clear performance data: ${perfError.message}`)
   }
 }
+
+export async function getUsers(): Promise<import('../types/auth').AppUser[]> {
+  const { data, error } = await supabase
+    .from('app_users')
+    .select('*')
+    .order('created_at', { ascending: false })
+  
+  if (error) throw new Error(error.message)
+  return data.map(row => ({
+    id: row.id,
+    email: row.email,
+    role: row.role as import('../types/auth').UserRole,
+    is_active: row.is_active,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  }))
+}
+
+export async function updateUserStatus(userId: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('app_users')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  
+  if (error) throw new Error(error.message)
+}
+
+export async function updateUserRole(userId: string, role: import('../types/auth').UserRole): Promise<void> {
+  const { error } = await supabase
+    .from('app_users')
+    .update({ role, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+  
+  if (error) throw new Error(error.message)
+}
+
+export async function countActiveAdmins(): Promise<number> {
+  const { count, error } = await supabase
+    .from('app_users')
+    .select('*', { count: 'exact', head: true })
+    .eq('role', 'admin')
+    .eq('is_active', true)
+  
+  if (error) throw new Error(error.message)
+  return count || 0
+}
