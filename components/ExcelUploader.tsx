@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { MonthlyPerformance, MarketShare, CustomerData, ProductCategory } from '../types';
+import { MonthlyPerformance, MarketShare, CustomerData, ProductCategory, CATEGORIES } from '../types';
 import { parsePerformanceExcel, parseCustomerExcel, parseCustomerCSV, parsePerformanceFromSalesFile, PerformanceAndCustomerData, FileType } from '../utils/excelParser';
 
 interface ExcelUploaderProps {
@@ -104,6 +104,37 @@ export const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onPerformanceUploa
     return null;
   };
 
+  const downloadTemplate = (type: 'performance' | 'customer') => {
+    const bom = '\uFEFF';
+    let csv: string;
+    
+    if (type === 'performance') {
+      const header = ['카테고리', '월', '25년 실적(억)', '26년 목표(억)', '26년 실적(억)'];
+      const rows: string[] = [];
+      CATEGORIES.forEach(cat => {
+        for (let m = 1; m <= 12; m++) {
+          rows.push([cat, m, '', '', ''].join(','));
+        }
+      });
+      csv = bom + [header.join(','), ...rows].join('\n');
+    } else {
+      const header = ['카테고리', '고객사명', '25년 실적(억)', '26년 YTD(억)', '성장률(%)', '상태(Thriving/Stable/Challenged)'];
+      const rows = CATEGORIES.map(cat => [cat, '', '', '', '', 'Stable'].join(','));
+      csv = bom + [header.join(','), ...rows].join('\n');
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = type === 'performance' ? '실적_템플릿.csv' : '고객사_템플릿.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setIsOpen(false);
+  };
+
   return (
     <div className="relative">
       <input ref={performanceInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handlePerformanceUpload} className="hidden" multiple />
@@ -133,6 +164,19 @@ export const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onPerformanceUploa
             >
               <span>고객사 점유율</span>
               {getStatusIndicator(customerStatus)}
+            </button>
+            <div className="border-t border-slate-100 my-1" />
+            <button
+              onClick={() => downloadTemplate('performance')}
+              className="w-full px-4 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
+            >
+              실적 템플릿
+            </button>
+            <button
+              onClick={() => downloadTemplate('customer')}
+              className="w-full px-4 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
+            >
+              고객사 템플릿
             </button>
             <div className="border-t border-slate-100 my-1" />
             <button

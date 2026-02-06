@@ -398,3 +398,133 @@ export async function countActiveAdmins(): Promise<number> {
   if (error) throw new Error(error.message)
   return count || 0
 }
+
+// ====== Data Management CRUD Functions ======
+
+export async function upsertMonthlyPerformance(
+  categoryName: ProductCategory,
+  month: number,
+  data: { lastYearActual: number; thisYearTarget: number; thisYearActual: number | null }
+): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+  if (!categoryId) throw new Error(`Category ${categoryName} not found`)
+
+  // Check if row exists
+  const { data: existing } = await supabase
+    .from('monthly_performance')
+    .select('id')
+    .eq('category_id', categoryId)
+    .eq('month', month)
+    .single()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('monthly_performance')
+      .update({
+        last_year_actual: data.lastYearActual,
+        this_year_target: data.thisYearTarget,
+        this_year_actual: data.thisYearActual,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase
+      .from('monthly_performance')
+      .insert({
+        category_id: categoryId,
+        month,
+        last_year_actual: data.lastYearActual,
+        this_year_target: data.thisYearTarget,
+        this_year_actual: data.thisYearActual
+      })
+    if (error) throw new Error(error.message)
+  }
+}
+
+export async function upsertFacilitator(
+  categoryName: ProductCategory,
+  role: string,
+  name: string
+): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+  if (!categoryId) throw new Error(`Category ${categoryName} not found`)
+
+  const { data: existing } = await supabase
+    .from('facilitators')
+    .select('id')
+    .eq('category_id', categoryId)
+    .eq('role', role)
+    .single()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('facilitators')
+      .update({ name, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase
+      .from('facilitators')
+      .insert({ category_id: categoryId, role, name })
+    if (error) throw new Error(error.message)
+  }
+}
+
+export async function upsertCustomer(
+  categoryName: ProductCategory,
+  customerData: {
+    id?: string
+    name: string
+    revenueLastYear: number
+    revenueYTD: number
+    growth: number
+    status: string
+  }
+): Promise<string> {
+  const categoryId = await getCategoryId(categoryName)
+  if (!categoryId) throw new Error(`Category ${categoryName} not found`)
+
+  if (customerData.id) {
+    const { error } = await supabase
+      .from('customers')
+      .update({
+        name: customerData.name,
+        revenue_last_year: customerData.revenueLastYear,
+        revenue_ytd: customerData.revenueYTD,
+        growth: customerData.growth,
+        status: customerData.status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', customerData.id)
+    if (error) throw new Error(error.message)
+    return customerData.id
+  } else {
+    const { data, error } = await supabase
+      .from('customers')
+      .insert({
+        category_id: categoryId,
+        name: customerData.name,
+        revenue_last_year: customerData.revenueLastYear,
+        revenue_ytd: customerData.revenueYTD,
+        growth: customerData.growth,
+        status: customerData.status
+      })
+      .select('id')
+      .single()
+    if (error || !data) throw new Error(error?.message || 'Failed to insert customer')
+    return data.id
+  }
+}
+
+export async function deleteCustomer(customerId: string): Promise<void> {
+  // Products and market_shares should cascade or be deleted first
+  const { error: prodErr } = await supabase.from('products').delete().eq('customer_id', customerId)
+  if (prodErr) throw new Error(prodErr.message)
+  
+  const { error: shareErr } = await supabase.from('market_shares').delete().eq('customer_id', customerId)
+  if (shareErr) throw new Error(shareErr.message)
+  
+  const { error } = await supabase.from('customers').delete().eq('id', customerId)
+  if (error) throw new Error(error.message)
+}

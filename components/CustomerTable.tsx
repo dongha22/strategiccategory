@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { CustomerData, CustomerStatus } from '../types';
 
 interface Props {
@@ -35,14 +35,47 @@ const StatusBadge: React.FC<{ status: CustomerStatus }> = ({ status }) => {
 };
 
 export const CustomerTable: React.FC<Props> = ({ customers, onCustomerClick }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<CustomerStatus | 'all'>('all');
+
+  const filteredCustomers = useMemo(() => {
+    return customers.filter(c => {
+      const matchesSearch = searchTerm === '' || c.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [customers, searchTerm, statusFilter]);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
-      <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-        <div>
-          <h3 className="font-bold text-slate-800 text-lg">top20 고객사 점유율 추이</h3>
-          <p className="text-xs text-slate-500 mt-0.5">고객사별 Cosmax vs Kolmar 점유율 변동 추이 및 종합 진단</p>
+      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <h3 className="font-bold text-slate-800 text-lg">top20 고객사 점유율 추이</h3>
+            <p className="text-xs text-slate-500 mt-0.5">고객사별 Cosmax vs Kolmar 점유율 변동 추이 및 종합 진단</p>
+          </div>
+          <span className="text-xs text-slate-400">단위: 억 원 / %</span>
         </div>
-        <span className="text-xs text-slate-400">단위: 억 원 / %</span>
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="고객사 검색..."
+            className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | 'all')}
+            className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">전체 상태</option>
+            <option value="Thriving">Thriving</option>
+            <option value="Stable">Stable</option>
+            <option value="Challenged">Challenged</option>
+          </select>
+          <span className="text-xs text-slate-400 ml-auto">{filteredCustomers.length}개사</span>
+        </div>
       </div>
       
       {/* Scrollable container for the table body */}
@@ -67,7 +100,7 @@ export const CustomerTable: React.FC<Props> = ({ customers, onCustomerClick }) =
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {customers.map((c, idx) => (
+            {filteredCustomers.map((c, idx) => (
               <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
                 <td className="px-6 py-4 text-center font-bold text-slate-400 group-hover:text-blue-600 transition-colors border-r border-slate-100/50">
                   {idx + 1}

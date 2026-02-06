@@ -5,18 +5,21 @@ import { LAST_UPDATE_DATE } from './data/mockData';
 import { PerformanceMetrics } from './components/PerformanceMetrics';
 import { SalesChart } from './components/SalesChart';
 import { MarketShareChart } from './components/MarketShareChart';
+import { GrowthTrendChart } from './components/GrowthTrendChart';
 import { CustomerTable } from './components/CustomerTable';
 import { ProductListModal } from './components/ProductListModal';
 import { ExcelUploader } from './components/ExcelUploader';
+import { exportFullDataCSV } from './utils/exportData';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { useAuthContext } from './src/components/AuthProvider';
 import { useDashboardData } from './src/hooks/useDashboardData';
 import { uploadPerformanceData, uploadCustomerData, clearCategoryData } from './src/lib/database';
 import { AdminPage } from './src/pages/AdminPage';
+import { DataManagementPage } from './src/pages/DataManagementPage';
 
 const App: React.FC = () => {
   const { isAdmin, signOut } = useAuthContext();
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'admin'>('dashboard');
+  const [currentPage, setCurrentPage] = useState<'dashboard' | 'admin' | 'data'>('dashboard');
   const [state, setState] = useState<DashboardState>({
     selectedCategory: 'Sun Care',
   });
@@ -159,6 +162,14 @@ const App: React.FC = () => {
     );
   }
 
+  if (currentPage === 'data') {
+    return (
+      <ProtectedRoute>
+        <DataManagementPage onBack={() => { setCurrentPage('dashboard'); refresh(); }} />
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -174,11 +185,23 @@ const App: React.FC = () => {
            <div className="flex items-center gap-4">
               {isAdmin && (
                 <>
+                  <button
+                    onClick={() => exportFullDataCSV(currentData)}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+                  >
+                    CSV
+                  </button>
                   <ExcelUploader 
                     onPerformanceUpload={handlePerformanceUpload}
                     onCustomerUpload={handleCustomerUpload}
                     onReset={handleReset}
                   />
+                  <button
+                    onClick={() => setCurrentPage('data')}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+                  >
+                    데이터
+                  </button>
                   <button
                     onClick={() => setCurrentPage('admin')}
                     className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
@@ -248,6 +271,10 @@ const App: React.FC = () => {
           <div className="relative">
             <MarketShareChart data={currentData.top20AggregateShare} />
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 mb-8">
+          <GrowthTrendChart data={currentData.totalPerformance} />
         </div>
 
         <CustomerTable 
