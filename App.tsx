@@ -8,6 +8,8 @@ import { MarketShareChart } from './components/MarketShareChart';
 import { CustomerTable } from './components/CustomerTable';
 import { ProductListModal } from './components/ProductListModal';
 import { ExcelUploader } from './components/ExcelUploader';
+import { ProtectedRoute } from './src/components/ProtectedRoute';
+import { useAuthContext } from './src/components/AuthProvider';
 import { mergeWithExistingData } from './utils/excelParser';
 
 const STORAGE_KEYS = {
@@ -20,6 +22,7 @@ const STORAGE_KEYS = {
 };
 
 const App: React.FC = () => {
+  const { isAdmin, signOut } = useAuthContext();
   const [state, setState] = useState<DashboardState>({
     selectedCategory: 'Sun Care',
   });
@@ -240,9 +243,10 @@ const App: React.FC = () => {
   const tableColumns = getTableColumns();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Navigation Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        {/* Navigation Header */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">O</div>
@@ -251,13 +255,21 @@ const App: React.FC = () => {
               <p className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">Strategic Management System</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-             <ExcelUploader 
-               onPerformanceUpload={handlePerformanceUpload}
-               onCustomerUpload={handleCustomerUpload}
-               onReset={handleReset}
-             />
-             <div className="hidden md:flex items-center gap-6 mr-4 border-r border-slate-200 pr-6">
+           <div className="flex items-center gap-4">
+              {isAdmin && (
+                <ExcelUploader 
+                  onPerformanceUpload={handlePerformanceUpload}
+                  onCustomerUpload={handleCustomerUpload}
+                  onReset={handleReset}
+                />
+              )}
+              <button
+                onClick={() => signOut()}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors duration-200"
+              >
+                Logout
+              </button>
+              <div className="hidden md:flex items-center gap-6 mr-4 border-r border-slate-200 pr-6">
                 <div className="text-right">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Data Period</p>
                   <p className="text-sm font-bold text-slate-700">{getDataPeriod()}</p>
@@ -413,14 +425,15 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      {selectedCustomer && (
-        <ProductListModal
-          customer={selectedCustomer}
-          category={state.selectedCategory}
-          onClose={() => setSelectedCustomer(null)}
-        />
-      )}
-    </div>
+        {selectedCustomer && (
+          <ProductListModal
+            customer={selectedCustomer}
+            category={state.selectedCategory}
+            onClose={() => setSelectedCustomer(null)}
+          />
+        )}
+      </div>
+    </ProtectedRoute>
   );
 };
 
