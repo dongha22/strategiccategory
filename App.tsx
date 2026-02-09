@@ -5,7 +5,6 @@ import { LAST_UPDATE_DATE } from './data/mockData';
 import { PerformanceMetrics } from './components/PerformanceMetrics';
 import { SalesChart } from './components/SalesChart';
 import { MarketShareChart } from './components/MarketShareChart';
-import { GrowthTrendChart } from './components/GrowthTrendChart';
 import { CustomerTable } from './components/CustomerTable';
 import { ProductListModal } from './components/ProductListModal';
 import { ExcelUploader } from './components/ExcelUploader';
@@ -144,16 +143,6 @@ const App: React.FC = () => {
 
   const tableColumns = getTableColumns();
 
-  if (loading) {
-    return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="text-slate-500">Loading...</div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
   if (currentPage === 'admin') {
     return (
       <ProtectedRoute>
@@ -166,6 +155,16 @@ const App: React.FC = () => {
     return (
       <ProtectedRoute>
         <DataManagementPage onBack={() => { setCurrentPage('dashboard'); refresh(); }} />
+      </ProtectedRoute>
+    );
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-slate-500">Loading...</div>
+        </div>
       </ProtectedRoute>
     );
   }
@@ -271,10 +270,6 @@ const App: React.FC = () => {
           <div className="relative">
             <MarketShareChart data={currentData.top20AggregateShare} />
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 mb-8">
-          <GrowthTrendChart data={currentData.totalPerformance} />
         </div>
 
         <CustomerTable 

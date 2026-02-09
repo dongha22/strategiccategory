@@ -1,12 +1,8 @@
 {
-  "active_plan": "/mnt/c/Users/Dongha/Downloads/new/.sisyphus/plans/dashboard-refactor.md",
-  "started_at": "2026-01-26T07:03:57.125Z",
-  "completed_at": "2026-01-26T07:30:00.000Z",
+  "active_plan": "/home/dongha/strategiccategory/.sisyphus/plans/vercel-supabase-deployment.md",
+  "started_at": "2026-02-06T00:39:14.810Z",
   "session_ids": [
-    "ses_406eac4c5ffeDgOT7tTSHmgFOe"
+    "ses_3cfaa0d4affegzq9ggSOn1DhDp"
   ],
-  "plan_name": "dashboard-refactor",
-  "status": "completed",
-  "tasks_completed": 6,
-  "tasks_total": 6
+  "plan_name": "vercel-supabase-deployment"
 }
