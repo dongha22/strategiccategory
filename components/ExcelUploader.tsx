@@ -4,7 +4,8 @@ import { parsePerformanceExcel, parseCustomerExcel, parseCustomerCSV, parsePerfo
 
 interface ExcelUploaderProps {
   onPerformanceUpload: (
-    data: Partial<Record<ProductCategory, MonthlyPerformance[]>>, 
+    data: Partial<Record<ProductCategory, MonthlyPerformance[]>>,
+    fileType: 'lastYear' | 'plan' | 'thisYear',
     revenueLastYear?: Partial<Record<ProductCategory, Map<string, number>>>,
     revenueThisYear?: Partial<Record<ProductCategory, Map<string, number>>>,
     revenueLastYearByMonth?: Partial<Record<ProductCategory, Map<string, Map<number, number>>>>
@@ -16,53 +17,113 @@ interface ExcelUploaderProps {
 type UploadStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onPerformanceUpload, onCustomerUpload, onReset }) => {
-  const performanceInputRef = useRef<HTMLInputElement>(null);
+  const lastYearInputRef = useRef<HTMLInputElement>(null);
+  const planInputRef = useRef<HTMLInputElement>(null);
+  const thisYearInputRef = useRef<HTMLInputElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
   
   const [isOpen, setIsOpen] = useState(false);
-  const [performanceStatus, setPerformanceStatus] = useState<UploadStatus>('idle');
+  const [lastYearStatus, setLastYearStatus] = useState<UploadStatus>('idle');
+  const [planStatus, setPlanStatus] = useState<UploadStatus>('idle');
+  const [thisYearStatus, setThisYearStatus] = useState<UploadStatus>('idle');
   const [customerStatus, setCustomerStatus] = useState<UploadStatus>('idle');
 
-  const handlePerformanceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLastYearUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     
-    setPerformanceStatus('loading');
+    setLastYearStatus('loading');
     
     try {
+      const file = files[0];
+      const data = await parsePerformanceFromSalesFile(file);
+      
       let performanceResult: Partial<Record<ProductCategory, MonthlyPerformance[]>> = {};
       let revenueLastYear: Partial<Record<ProductCategory, Map<string, number>>> = {};
-      let revenueThisYear: Partial<Record<ProductCategory, Map<string, number>>> = {};
       let revenueLastYearByMonth: Partial<Record<ProductCategory, Map<string, Map<number, number>>>> = {};
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const data = await parsePerformanceFromSalesFile(file);
-        
-        for (const [category, catData] of Object.entries(data)) {
-          performanceResult[category as ProductCategory] = catData.performance;
-          
-          if (catData.fileType === 'lastYear') {
-            revenueLastYear[category as ProductCategory] = catData.customerRevenue;
-            revenueLastYearByMonth[category as ProductCategory] = catData.customerRevenueByMonth;
-          } else if (catData.fileType === 'thisYear') {
-            revenueThisYear[category as ProductCategory] = catData.customerRevenue;
-          }
-        }
+      for (const [category, catData] of Object.entries(data)) {
+        performanceResult[category as ProductCategory] = catData.performance;
+        revenueLastYear[category as ProductCategory] = catData.customerRevenue;
+        revenueLastYearByMonth[category as ProductCategory] = catData.customerRevenueByMonth;
       }
       
-      onPerformanceUpload(performanceResult, revenueLastYear, revenueThisYear, revenueLastYearByMonth);
-      setPerformanceStatus('success');
-      setTimeout(() => setPerformanceStatus('idle'), 2000);
+      onPerformanceUpload(performanceResult, 'lastYear', revenueLastYear, undefined, revenueLastYearByMonth);
+      setLastYearStatus('success');
+      setTimeout(() => setLastYearStatus('idle'), 2000);
     } catch (error) {
-      console.error('Failed to parse performance file:', error);
+      console.error('Failed to parse lastYear file:', error);
       alert(error instanceof Error ? error.message : 'Failed to parse file');
-      setPerformanceStatus('error');
-      setTimeout(() => setPerformanceStatus('idle'), 2000);
+      setLastYearStatus('error');
+      setTimeout(() => setLastYearStatus('idle'), 2000);
     }
     
-    if (performanceInputRef.current) {
-      performanceInputRef.current.value = '';
+    if (lastYearInputRef.current) {
+      lastYearInputRef.current.value = '';
+    }
+  };
+
+  const handlePlanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setPlanStatus('loading');
+    
+    try {
+      const file = files[0];
+      const data = await parsePerformanceFromSalesFile(file);
+      
+      let performanceResult: Partial<Record<ProductCategory, MonthlyPerformance[]>> = {};
+      
+      for (const [category, catData] of Object.entries(data)) {
+        performanceResult[category as ProductCategory] = catData.performance;
+      }
+      
+      onPerformanceUpload(performanceResult, 'plan');
+      setPlanStatus('success');
+      setTimeout(() => setPlanStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to parse plan file:', error);
+      alert(error instanceof Error ? error.message : 'Failed to parse file');
+      setPlanStatus('error');
+      setTimeout(() => setPlanStatus('idle'), 2000);
+    }
+    
+    if (planInputRef.current) {
+      planInputRef.current.value = '';
+    }
+  };
+
+  const handleThisYearUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setThisYearStatus('loading');
+    
+    try {
+      const file = files[0];
+      const data = await parsePerformanceFromSalesFile(file);
+      
+      let performanceResult: Partial<Record<ProductCategory, MonthlyPerformance[]>> = {};
+      let revenueThisYear: Partial<Record<ProductCategory, Map<string, number>>> = {};
+      
+      for (const [category, catData] of Object.entries(data)) {
+        performanceResult[category as ProductCategory] = catData.performance;
+        revenueThisYear[category as ProductCategory] = catData.customerRevenue;
+      }
+      
+      onPerformanceUpload(performanceResult, 'thisYear', undefined, revenueThisYear);
+      setThisYearStatus('success');
+      setTimeout(() => setThisYearStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Failed to parse thisYear file:', error);
+      alert(error instanceof Error ? error.message : 'Failed to parse file');
+      setThisYearStatus('error');
+      setTimeout(() => setThisYearStatus('idle'), 2000);
+    }
+    
+    if (thisYearInputRef.current) {
+      thisYearInputRef.current.value = '';
     }
   };
 
@@ -137,7 +198,9 @@ export const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onPerformanceUploa
 
   return (
     <div className="relative">
-      <input ref={performanceInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handlePerformanceUpload} className="hidden" multiple />
+      <input ref={lastYearInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleLastYearUpload} className="hidden" />
+      <input ref={planInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handlePlanUpload} className="hidden" />
+      <input ref={thisYearInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleThisYearUpload} className="hidden" />
       <input ref={customerInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} className="hidden" multiple />
       
       <button
@@ -149,47 +212,104 @@ export const ExcelUploader: React.FC<ExcelUploaderProps> = ({ onPerformanceUploa
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-40">
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setIsOpen(false)} />
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg border border-slate-200 z-50 w-[600px] max-h-[80vh] overflow-y-auto p-6">
             <button
-              onClick={() => { performanceInputRef.current?.click(); }}
-              className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between"
+              onClick={() => setIsOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl font-light"
             >
-              <span>실적 테이블</span>
-              {getStatusIndicator(performanceStatus)}
+              ×
             </button>
-            <button
-              onClick={() => { customerInputRef.current?.click(); }}
-              className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between"
-            >
-              <span>고객사 점유율</span>
-              {getStatusIndicator(customerStatus)}
-            </button>
-            <div className="border-t border-slate-100 my-1" />
-            <button
-              onClick={() => downloadTemplate('performance')}
-              className="w-full px-4 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
-            >
-              실적 템플릿
-            </button>
-            <button
-              onClick={() => downloadTemplate('customer')}
-              className="w-full px-4 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
-            >
-              고객사 템플릿
-            </button>
-            <div className="border-t border-slate-100 my-1" />
-            <button
-              onClick={() => { 
-                if (confirm('저장된 데이터를 모두 초기화하시겠습니까?')) {
-                  onReset();
-                  setIsOpen(false);
-                }
-              }}
-              className="w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
-            >
-              데이터 초기화
-            </button>
+            
+            <h3 className="text-lg font-bold text-slate-800 mb-4">데이터 업로드</h3>
+            
+            <div className="mb-6">
+              <p className="text-sm font-medium text-slate-600 mb-3">실적 데이터</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="border border-slate-200 rounded-lg p-3 text-center">
+                  <p className="text-xs font-medium text-slate-600 mb-2">25년 실적</p>
+                  <button
+                    onClick={() => lastYearInputRef.current?.click()}
+                    className="w-full px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                  >
+                    파일 선택
+                  </button>
+                  <div className="mt-2">
+                    {getStatusIndicator(lastYearStatus)}
+                  </div>
+                </div>
+                
+                <div className="border border-slate-200 rounded-lg p-3 text-center">
+                  <p className="text-xs font-medium text-slate-600 mb-2">26년 목표</p>
+                  <button
+                    onClick={() => planInputRef.current?.click()}
+                    className="w-full px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                  >
+                    파일 선택
+                  </button>
+                  <div className="mt-2">
+                    {getStatusIndicator(planStatus)}
+                  </div>
+                </div>
+                
+                <div className="border border-slate-200 rounded-lg p-3 text-center">
+                  <p className="text-xs font-medium text-slate-600 mb-2">26년 실적</p>
+                  <button
+                    onClick={() => thisYearInputRef.current?.click()}
+                    className="w-full px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                  >
+                    파일 선택
+                  </button>
+                  <div className="mt-2">
+                    {getStatusIndicator(thisYearStatus)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm font-medium text-slate-600 mb-3">고객사 데이터</p>
+              <div className="border border-slate-200 rounded-lg p-3">
+                <p className="text-xs font-medium text-slate-600 mb-2">고객사 점유율</p>
+                <button
+                  onClick={() => customerInputRef.current?.click()}
+                  className="w-full px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition-colors"
+                >
+                  파일 선택
+                </button>
+                <div className="mt-2 text-center">
+                  {getStatusIndicator(customerStatus)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-200 pt-4 mt-4">
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => downloadTemplate('performance')}
+                  className="flex-1 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded border border-slate-200 transition-colors"
+                >
+                  실적 템플릿
+                </button>
+                <button
+                  onClick={() => downloadTemplate('customer')}
+                  className="flex-1 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded border border-slate-200 transition-colors"
+                >
+                  고객사 템플릿
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  if (confirm('저장된 데이터를 모두 초기화하시겠습니까?')) {
+                    onReset();
+                    setIsOpen(false);
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 rounded border border-rose-200 transition-colors"
+              >
+                데이터 초기화
+              </button>
+            </div>
           </div>
         </>
       )}

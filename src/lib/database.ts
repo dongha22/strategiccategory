@@ -207,6 +207,41 @@ export async function uploadPerformanceData(
   }
 }
 
+export async function uploadPerformanceDataByType(
+  categoryName: ProductCategory,
+  performance: MonthlyPerformance[],
+  fileType: 'lastYear' | 'plan' | 'thisYear'
+): Promise<void> {
+  const categoryId = await getCategoryId(categoryName)
+
+  if (!categoryId) {
+    throw new Error(`Category ${categoryName} not found`)
+  }
+
+  const rows = performance.map(p => {
+    const base: { category_id: string; month: number } = {
+      category_id: categoryId,
+      month: p.month
+    }
+
+    if (fileType === 'lastYear') {
+      return { ...base, last_year_actual: p.lastYearActual }
+    } else if (fileType === 'plan') {
+      return { ...base, this_year_target: p.thisYearTarget }
+    } else {
+      return { ...base, this_year_actual: p.thisYearActual }
+    }
+  })
+
+  const { error } = await supabase
+    .from('monthly_performance')
+    .upsert(rows, { onConflict: 'category_id,month', ignoreDuplicates: false })
+
+  if (error) {
+    throw new Error(`Failed to upsert performance data: ${error.message}`)
+  }
+}
+
 export async function uploadCustomerData(
   categoryName: ProductCategory,
   customers: CustomerData[],

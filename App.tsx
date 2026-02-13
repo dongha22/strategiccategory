@@ -12,7 +12,7 @@ import { exportFullDataCSV } from './utils/exportData';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { useAuthContext } from './src/components/AuthProvider';
 import { useDashboardData } from './src/hooks/useDashboardData';
-import { uploadPerformanceData, uploadCustomerData, clearCategoryData } from './src/lib/database';
+import { uploadPerformanceDataByType, uploadCustomerData, clearCategoryData } from './src/lib/database';
 import { AdminPage } from './src/pages/AdminPage';
 import { DataManagementPage } from './src/pages/DataManagementPage';
 
@@ -28,17 +28,18 @@ const App: React.FC = () => {
 
   const handlePerformanceUpload = async (
     data: Partial<Record<ProductCategory, MonthlyPerformance[]>>,
+    fileType: 'lastYear' | 'plan' | 'thisYear',
     _revenueLastYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
     _revenueThisYearData?: Partial<Record<ProductCategory, Map<string, number>>>,
     _revenueLastYearByMonthData?: Partial<Record<ProductCategory, Map<string, Map<number, number>>>>
   ) => {
     try {
-      for (const [category, performance] of Object.entries(data)) {
-        if (performance) {
-          await uploadPerformanceData(category as ProductCategory, performance);
-        }
-      }
-      await refresh();
+       for (const [category, performance] of Object.entries(data)) {
+         if (performance) {
+           await uploadPerformanceDataByType(category as ProductCategory, performance, fileType);
+         }
+       }
+       await refresh();
     } catch (error) {
       console.error('Failed to upload performance data:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload performance data');
